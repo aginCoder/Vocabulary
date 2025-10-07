@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VocabNotes — Ghi chú & Lưu trữ từ vựng EN ↔️ VI</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#111827; --muted:#9aa4b2; --accent:#7c3aed; --glass: rgba(255,255,255,0.04);
+      --radius:14px; --gap:16px; --max-width:1100px;
+      --glass-2: rgba(255,255,255,0.02);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(180deg,#071126 0%, #081226 60%); color:#e6eef8; -webkit-font-smoothing:antialiased;
+      padding:24px; display:flex; align-items:center; justify-content:center; min-height:100vh;
+    }
+    .app{width:100%; max-width:var(--max-width);} 
+    header{display:flex; align-items:center; gap:16px; margin-bottom:18px}
+    .logo{display:flex; align-items:center; gap:12px}
+    .badge{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:grid;place-items:center;font-weight:700}
+    h1{margin:0;font-size:20px}
+    p.lead{margin:0;color:var(--muted); font-size:13px}
+
+    .grid{display:grid; grid-template-columns: 360px 1fr; gap:var(--gap)}
+
+    /* sidebar / form */
+    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:var(--radius); padding:16px; box-shadow: 0 6px 24px rgba(2,6,23,0.6);}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+    input[type=text], textarea, select{width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.04); background:var(--glass); color:inherit; outline:none}
+    textarea{min-height:80px; resize:vertical}
+    .row{display:flex; gap:8px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#06b6d4);color:#021124}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+    .controls{display:flex; gap:8px; margin-top:12px}
+
+    /* list / search */
+    .searchbar{display:flex; gap:8px; margin-bottom:12px; align-items:center}
+    .searchbar input[type=text]{flex:1}
+    .list{display:grid; gap:12px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:12px; display:flex; justify-content:space-between; align-items:flex-start; box-shadow:0 8px 18px rgba(2,6,23,0.6)}
+    .left{max-width:72%}
+    .word{font-size:16px; font-weight:600; margin:0}
+    .trans{color:var(--muted); margin:6px 0 0}
+    .meta{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap}
+    .tag{font-size:12px;padding:6px 8px;border-radius:999px;background:var(--glass-2);color:var(--muted)}
+    .actions{display:flex; gap:8px; align-items:center}
+    .small{font-size:13px;padding:6px 8px;border-radius:8px}
+    .known{background:rgba(34,197,94,0.12); color:#bbf7d0}
+    .unknown{background:rgba(248,113,113,0.08); color:#ffdede}
+
+    footer{margin-top:12px;color:var(--muted);font-size:12px}
+
+    /* responsive */
+    @media (max-width:900px){
+      .grid{grid-template-columns:1fr;}
+      .left{max-width:100%}
+    }
+
+    /* subtle transitions */
+    input,textarea,button{transition:all .18s ease}
+    .card:hover{transform:translateY(-4px)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">
+        <div class="badge">VN</div>
+        <div>
+          <h1>VocabNotes</h1>
+          <p class="lead">Ghi chú & lưu trữ từ vựng Anh ↔ Việt — lưu tại trình duyệt</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="panel" aria-label="Thêm từ mới">
+        <h3 style="margin-top:0">Thêm / Sửa từ</h3>
+        <form id="entryForm">
+          <label for="english">Tiếng Anh</label>
+          <input id="english" placeholder="e.g. innovate" required />
+
+          <label for="vietnamese" style="margin-top:10px">Tiếng Việt</label>
+          <input id="vietnamese" placeholder="e.g. đổi mới / sáng tạo" required />
+
+          <label for="notes" style="margin-top:10px">Ghi chú / Ví dụ</label>
+          <textarea id="notes" placeholder="Ví dụ: innovate -> to introduce new things"></textarea>
+
+          <label for="tags" style="margin-top:10px">Thẻ (phân tách bằng dấu phẩy)</label>
+          <input id="tags" placeholder="ví dụ: business, idiom" />
+
+          <div class="controls">
+            <button class="btn primary" type="submit">Lưu từ</button>
+            <button type="button" id="clearForm" class="btn ghost">Xóa form</button>
+          </div>
+        </form>
+
+        <hr style="margin:14px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)" />
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="importBtn" class="btn small ghost">Nhập JSON</button>
+          <button id="exportBtn" class="btn small ghost">Xuất JSON</button>
+          <button id="seedBtn" class="btn small ghost">Thêm mẫu</button>
+          <button id="clearAll" class="btn small" style="background:rgba(220,38,38,0.12)">Xóa tất cả</button>
+        </div>
+
+        <footer>
+          Dữ liệu lưu tại localStorage của trình duyệt. Có thể xuất / nhập để đồng bộ hoặc sao lưu.
+        </footer>
+      </section>
+
+      <section>
+        <div class="panel" style="margin-bottom:12px">
+          <div class="searchbar">
+            <input id="search" placeholder="Tìm kiếm từ / nghĩa / thẻ..." />
+            <select id="filter">
+              <option value="all">Tất cả</option>
+              <option value="known">Đã nhớ</option>
+              <option value="unknown">Chưa nhớ</option>
+            </select>
+            <select id="sort">
+              <option value="new">Mới nhất</option>
+              <option value="alpha">A → Z</option>
+            </select>
+          </div>
+
+          <div id="list" class="list" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Simple VocabNotes - localStorage based
+    const STORAGE_KEY = 'vocabnotes.entries.v1';
+
+    // DOM
+    const entryForm = document.getElementById('entryForm');
+    const englishInput = document.getElementById('english');
+    const vietnameseInput = document.getElementById('vietnamese');
+    const notesInput = document.getElementById('notes');
+    const tagsInput = document.getElementById('tags');
+    const listEl = document.getElementById('list');
+    const searchInput = document.getElementById('search');
+    const filterSelect = document.getElementById('filter');
+    const sortSelect = document.getElementById('sort');
+    const clearFormBtn = document.getElementById('clearForm');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const seedBtn = document.getElementById('seedBtn');
+    const clearAllBtn = document.getElementById('clearAll');
+
+    let entries = loadEntries();
+    let editingId = null;
+
+    render();
+
+    // --- form submit (add / edit)
+    entryForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const eng = englishInput.value.trim();
+      const vi = vietnameseInput.value.trim();
+      if(!eng || !vi) return alert('Vui lòng nhập Tiếng Anh và Tiếng Việt.');
+      const notes = notesInput.value.trim();
+      const tags = tagsInput.value.split(',').map(s=>s.trim()).filter(Boolean);
+
+      if(editingId){
+        const idx = entries.findIndex(x=>x.id===editingId);
+        if(idx!==-1){
+          entries[idx] = { ...entries[idx], english:eng, vietnamese:vi, notes, tags };
+          saveEntries();
+          editingId = null;
+        }
+      } else {
+        const entry = { id: genId(), english:eng, vietnamese:vi, notes, tags, known:false, created: Date.now() };
+        entries.unshift(entry);
+        saveEntries();
+      }
+      entryForm.reset();
+      render();
+    });
+
+    clearFormBtn.addEventListener('click', ()=>{ editingId=null; entryForm.reset(); englishInput.focus(); });
+
+    // --- actions
+    function toggleKnown(id){
+      const e = entries.find(x=>x.id===id); if(!e) return; e.known = !e.known; saveEntries(); render();
+    }
+    function removeEntry(id){ if(!confirm('Xóa từ này?')) return; entries = entries.filter(x=>x.id!==id); saveEntries(); render(); }
+    function editEntry(id){ const e = entries.find(x=>x.id===id); if(!e) return; editingId = id; englishInput.value=e.english; vietnameseInput.value=e.vietnamese; notesInput.value=e.notes||''; tagsInput.value=(e.tags||[]).join(', '); englishInput.focus(); }
+
+    // --- storage
+    function saveEntries(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+    function loadEntries(){ try{ const raw = localStorage.getItem(STORAGE_KEY); if(!raw) return []; return JSON.parse(raw).map(normalizeEntry); }catch(e){ console.error(e); return []; } }
+    function normalizeEntry(e){ return { id:e.id||genId(), english:e.english||'', vietnamese:e.vietnamese||'', notes:e.notes||'', tags:e.tags||[], known:!!e.known, created:e.created||Date.now() } }
+
+    // --- render
+    function render(){
+      const q = searchInput.value.trim().toLowerCase();
+      const filter = filterSelect.value;
+      const sort = sortSelect.value;
+      let list = entries.slice();
+
+      if(filter==='known') list = list.filter(x=>x.known===true);
+      if(filter==='unknown') list = list.filter(x=>x.known===false);
+
+      if(q){
+        list = list.filter(x=> (
+          x.english.toLowerCase().includes(q) || x.vietnamese.toLowerCase().includes(q) || (x.notes||'').toLowerCase().includes(q) || (x.tags||[]).join(' ').toLowerCase().includes(q)
+        ));
+      }
+
+      if(sort==='alpha') list.sort((a,b)=>a.english.localeCompare(b.english));
+      else list.sort((a,b)=>b.created - a.created);
+
+      listEl.innerHTML = '';
+      if(list.length===0){ listEl.innerHTML = '<div style="color:var(--muted);padding:18px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);">Không có dữ liệu. Thêm từ mới ở bên trái.</div>'; return; }
+
+      list.forEach(it=>{
+        const card = document.createElement('article'); card.className='card';
+        const left = document.createElement('div'); left.className='left';
+        const w = document.createElement('h4'); w.className='word'; w.textContent = it.english;
+        const t = document.createElement('div'); t.className='trans'; t.textContent = it.vietnamese;
+        const m = document.createElement('div'); m.className='meta';
+        (it.tags||[]).forEach(tag=>{ const tg = document.createElement('span'); tg.className='tag'; tg.textContent = tag; m.appendChild(tg); });
+        if(it.notes){ const n = document.createElement('div'); n.style.marginTop='8px'; n.style.fontSize='13px'; n.style.color='var(--muted)'; n.textContent=it.notes; left.appendChild(n); }
+        left.appendChild(w); left.appendChild(t); left.appendChild(m);
+
+        const right = document.createElement('div'); right.className='actions';
+        const knownBtn = document.createElement('button'); knownBtn.className='btn small ' + (it.known? 'known':'unknown'); knownBtn.textContent = it.known? 'Đã nhớ':'Chưa nhớ'; knownBtn.title='Đánh dấu đã nhớ'; knownBtn.onclick=()=>toggleKnown(it.id);
+        const editBtn = document.createElement('button'); editBtn.className='btn small ghost'; editBtn.textContent='Sửa'; editBtn.onclick=()=>editEntry(it.id);
+        const delBtn = document.createElement('button'); delBtn.className='btn small ghost'; delBtn.textContent='Xóa'; delBtn.onclick=()=>removeEntry(it.id);
+
+        right.appendChild(knownBtn); right.appendChild(editBtn); right.appendChild(delBtn);
+
+        card.appendChild(left); card.appendChild(right);
+        listEl.appendChild(card);
+      });
+    }
+
+    // --- utilities
+    function genId(){ return 'id_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+
+    // live filter events
+    [searchInput, filterSelect, sortSelect].forEach(el=> el.addEventListener('input', ()=>render()));
+
+    // export / import
+    exportBtn.addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(entries,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'vocabnotes-export-' + new Date().toISOString().slice(0,10) + '.json';
+      a.click(); URL.revokeObjectURL(url);
+    });
+
+    importBtn.addEventListener('click', ()=>{
+      const input = document.createElement('input'); input.type='file'; input.accept='application/json';
+      input.onchange = e=>{
+        const f = e.target.files[0]; if(!f) return;
+        const reader = new FileReader(); reader.onload = ev=>{
+          try{
+            const data = JSON.parse(ev.target.result);
+            if(!Array.isArray(data)) return alert('File không hợp lệ (cần 1 mảng entries).');
+            // merge but avoid id collisions
+            const existingIds = new Set(entries.map(x=>x.id));
+            data.forEach(d=>{ const ne = normalizeEntry(d); if(existingIds.has(ne.id)) ne.id = genId(); entries.push(ne); });
+            saveEntries(); render();
+            alert('Nhập thành công: ' + data.length + ' mục.');
+          }catch(err){ alert('Không đọc được file: ' + err.message); }
+        };
+        reader.readAsText(f);
+      };
+      input.click();
+    });
+
+    // seed
+    seedBtn.addEventListener('click', ()=>{
+      const samples = [
+        {english:'innovate', vietnamese:'đổi mới, sáng tạo', notes:'to introduce new methods, ideas, or products', tags:['general','verb']},
+        {english:'consequence', vietnamese:'hậu quả, kết quả', notes:'the result or effect of an action', tags:['noun']},
+        {english:'apply for', vietnamese:'nộp đơn xin', notes:'apply for a job/scholarship', tags:['phrasal verb']}
+      ];
+      samples.reverse().forEach(s=> entries.unshift(normalizeEntry({...s, id:genId(), known:false, created:Date.now()})));
+      saveEntries(); render();
+    });
+
+    // clear all
+    clearAllBtn.addEventListener('click', ()=>{
+      if(!confirm('Xóa tất cả dữ liệu? Hành động này không thể hoàn tác.')) return;
+      entries = []; saveEntries(); render();
+    });
+
+    // initial help - show hint once
+    (function(){ if(!localStorage.getItem('vocabnotes.hint_shown')){ console.info('VocabNotes ready — use Export/Import to sync between máy.'); localStorage.setItem('vocabnotes.hint_shown','1'); } })();
+
+  </script>
+</body>
+</html>
