@@ -132,11 +132,9 @@
     </main>
   </div>
 
+  <!-- 🧠 SCRIPT - có phân trang -->
   <script>
-    // Simple VocabNotes - localStorage based
     const STORAGE_KEY = 'vocabnotes.entries.v1';
-
-    // DOM
     const entryForm = document.getElementById('entryForm');
     const englishInput = document.getElementById('english');
     const vietnameseInput = document.getElementById('vietnamese');
@@ -154,10 +152,11 @@
 
     let entries = loadEntries();
     let editingId = null;
+    let currentPage = 1;
+    const perPage = 5;
 
     render();
 
-    // --- form submit (add / edit)
     entryForm.addEventListener('submit', e => {
       e.preventDefault();
       const eng = englishInput.value.trim();
@@ -165,7 +164,6 @@
       if(!eng || !vi) return alert('Vui lòng nhập Tiếng Anh và Tiếng Việt.');
       const notes = notesInput.value.trim();
       const tags = tagsInput.value.split(',').map(s=>s.trim()).filter(Boolean);
-
       if(editingId){
         const idx = entries.findIndex(x=>x.id===editingId);
         if(idx!==-1){
@@ -178,122 +176,108 @@
         entries.unshift(entry);
         saveEntries();
       }
-      entryForm.reset();
-      render();
+      entryForm.reset(); currentPage=1; render();
     });
 
     clearFormBtn.addEventListener('click', ()=>{ editingId=null; entryForm.reset(); englishInput.focus(); });
 
-    // --- actions
-    function toggleKnown(id){
-      const e = entries.find(x=>x.id===id); if(!e) return; e.known = !e.known; saveEntries(); render();
-    }
-    function removeEntry(id){ if(!confirm('Xóa từ này?')) return; entries = entries.filter(x=>x.id!==id); saveEntries(); render(); }
-    function editEntry(id){ const e = entries.find(x=>x.id===id); if(!e) return; editingId = id; englishInput.value=e.english; vietnameseInput.value=e.vietnamese; notesInput.value=e.notes||''; tagsInput.value=(e.tags||[]).join(', '); englishInput.focus(); }
+    function toggleKnown(id){ const e = entries.find(x=>x.id===id); if(!e) return; e.known=!e.known; saveEntries(); render(); }
+    function removeEntry(id){ if(!confirm('Xóa từ này?')) return; entries=entries.filter(x=>x.id!==id); saveEntries(); if((currentPage-1)*perPage>=entries.length&&currentPage>1)currentPage--; render(); }
+    function editEntry(id){ const e=entries.find(x=>x.id===id); if(!e)return; editingId=id; englishInput.value=e.english; vietnameseInput.value=e.vietnamese; notesInput.value=e.notes||''; tagsInput.value=(e.tags||[]).join(', '); englishInput.focus(); }
 
-    // --- storage
     function saveEntries(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
-    function loadEntries(){ try{ const raw = localStorage.getItem(STORAGE_KEY); if(!raw) return []; return JSON.parse(raw).map(normalizeEntry); }catch(e){ console.error(e); return []; } }
+    function loadEntries(){ try{const raw=localStorage.getItem(STORAGE_KEY); if(!raw)return[]; return JSON.parse(raw).map(normalizeEntry);}catch(e){console.error(e);return[];} }
     function normalizeEntry(e){ return { id:e.id||genId(), english:e.english||'', vietnamese:e.vietnamese||'', notes:e.notes||'', tags:e.tags||[], known:!!e.known, created:e.created||Date.now() } }
+    function genId(){ return 'id_'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4); }
 
-    // --- render
     function render(){
-      const q = searchInput.value.trim().toLowerCase();
-      const filter = filterSelect.value;
-      const sort = sortSelect.value;
-      let list = entries.slice();
+      const q=searchInput.value.trim().toLowerCase();
+      const filter=filterSelect.value;
+      const sort=sortSelect.value;
+      let list=entries.slice();
+      if(filter==='known')list=list.filter(x=>x.known);
+      if(filter==='unknown')list=list.filter(x=>!x.known);
+      if(q){list=list.filter(x=>x.english.toLowerCase().includes(q)||x.vietnamese.toLowerCase().includes(q)||(x.notes||'').toLowerCase().includes(q)||(x.tags||[]).join(' ').toLowerCase().includes(q));}
+      if(sort==='alpha')list.sort((a,b)=>a.english.localeCompare(b.english)); else list.sort((a,b)=>b.created-a.created);
 
-      if(filter==='known') list = list.filter(x=>x.known===true);
-      if(filter==='unknown') list = list.filter(x=>x.known===false);
+      const totalPages=Math.max(1,Math.ceil(list.length/perPage));
+      if(currentPage>totalPages)currentPage=totalPages;
+      const start=(currentPage-1)*perPage;
+      const pageList=list.slice(start,start+perPage);
 
-      if(q){
-        list = list.filter(x=> (
-          x.english.toLowerCase().includes(q) || x.vietnamese.toLowerCase().includes(q) || (x.notes||'').toLowerCase().includes(q) || (x.tags||[]).join(' ').toLowerCase().includes(q)
-        ));
-      }
+      listEl.innerHTML='';
+      if(list.length===0){listEl.innerHTML='<div style="color:var(--muted);padding:18px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);">Không có dữ liệu. Thêm từ mới ở bên trái.</div>';return;}
 
-      if(sort==='alpha') list.sort((a,b)=>a.english.localeCompare(b.english));
-      else list.sort((a,b)=>b.created - a.created);
-
-      listEl.innerHTML = '';
-      if(list.length===0){ listEl.innerHTML = '<div style="color:var(--muted);padding:18px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);">Không có dữ liệu. Thêm từ mới ở bên trái.</div>'; return; }
-
-      list.forEach(it=>{
-        const card = document.createElement('article'); card.className='card';
-        const left = document.createElement('div'); left.className='left';
-        const w = document.createElement('h4'); w.className='word'; w.textContent = it.english;
-        const t = document.createElement('div'); t.className='trans'; t.textContent = it.vietnamese;
-        const m = document.createElement('div'); m.className='meta';
-        (it.tags||[]).forEach(tag=>{ const tg = document.createElement('span'); tg.className='tag'; tg.textContent = tag; m.appendChild(tg); });
-        if(it.notes){ const n = document.createElement('div'); n.style.marginTop='8px'; n.style.fontSize='13px'; n.style.color='var(--muted)'; n.textContent=it.notes; left.appendChild(n); }
-        left.appendChild(w); left.appendChild(t); left.appendChild(m);
-
-        const right = document.createElement('div'); right.className='actions';
-        const knownBtn = document.createElement('button'); knownBtn.className='btn small ' + (it.known? 'known':'unknown'); knownBtn.textContent = it.known? 'Đã nhớ':'Chưa nhớ'; knownBtn.title='Đánh dấu đã nhớ'; knownBtn.onclick=()=>toggleKnown(it.id);
-        const editBtn = document.createElement('button'); editBtn.className='btn small ghost'; editBtn.textContent='Sửa'; editBtn.onclick=()=>editEntry(it.id);
-        const delBtn = document.createElement('button'); delBtn.className='btn small ghost'; delBtn.textContent='Xóa'; delBtn.onclick=()=>removeEntry(it.id);
-
-        right.appendChild(knownBtn); right.appendChild(editBtn); right.appendChild(delBtn);
-
-        card.appendChild(left); card.appendChild(right);
-        listEl.appendChild(card);
+      pageList.forEach(it=>{
+        const card=document.createElement('article');card.className='card';
+        const left=document.createElement('div');left.className='left';
+        const w=document.createElement('h4');w.className='word';w.textContent=it.english;
+        const t=document.createElement('div');t.className='trans';t.textContent=it.vietnamese;
+        const m=document.createElement('div');m.className='meta';(it.tags||[]).forEach(tag=>{const tg=document.createElement('span');tg.className='tag';tg.textContent=tag;m.appendChild(tg);});
+        left.appendChild(w);left.appendChild(t);left.appendChild(m);
+        if(it.notes){const n=document.createElement('div');n.style.marginTop='8px';n.style.fontSize='13px';n.style.color='var(--muted)';n.textContent=it.notes;left.appendChild(n);}
+        const right=document.createElement('div');right.className='actions';
+        const knownBtn=document.createElement('button');knownBtn.className='btn small '+(it.known?'known':'unknown');knownBtn.textContent=it.known?'Đã nhớ':'Chưa nhớ';knownBtn.onclick=()=>toggleKnown(it.id);
+        const editBtn=document.createElement('button');editBtn.className='btn small ghost';editBtn.textContent='Sửa';editBtn.onclick=()=>editEntry(it.id);
+        const delBtn=document.createElement('button');delBtn.className='btn small ghost';delBtn.textContent='Xóa';delBtn.onclick=()=>removeEntry(it.id);
+        right.append(knownBtn,editBtn,delBtn);
+        card.append(left,right);
+        listEl.append(card);
       });
+
+      const pager=document.createElement('div');
+      pager.style.display='flex';pager.style.justifyContent='center';pager.style.alignItems='center';pager.style.marginTop='12px';pager.style.gap='8px';
+      pager.innerHTML=`
+        <button class="btn small ghost" ${currentPage===1?'disabled':''} id="prevPage">« Trước</button>
+        <span style="font-size:13px;color:var(--muted)">Trang ${currentPage}/${totalPages}</span>
+        <button class="btn small ghost" ${currentPage===totalPages?'disabled':''} id="nextPage">Sau »</button>
+      `;
+      listEl.appendChild(pager);
+      pager.querySelector('#prevPage')?.addEventListener('click',()=>{if(currentPage>1){currentPage--;render();}});
+      pager.querySelector('#nextPage')?.addEventListener('click',()=>{if(currentPage<totalPages){currentPage++;render();}});
     }
 
-    // --- utilities
-    function genId(){ return 'id_' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+    [searchInput,filterSelect,sortSelect].forEach(el=>el.addEventListener('input',()=>{currentPage=1;render();}));
 
-    // live filter events
-    [searchInput, filterSelect, sortSelect].forEach(el=> el.addEventListener('input', ()=>render()));
-
-    // export / import
-    exportBtn.addEventListener('click', ()=>{
-      const blob = new Blob([JSON.stringify(entries,null,2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'vocabnotes-export-' + new Date().toISOString().slice(0,10) + '.json';
-      a.click(); URL.revokeObjectURL(url);
+    exportBtn.addEventListener('click',()=>{
+      const blob=new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='vocabnotes-export-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);
     });
 
-    importBtn.addEventListener('click', ()=>{
-      const input = document.createElement('input'); input.type='file'; input.accept='application/json';
-      input.onchange = e=>{
-        const f = e.target.files[0]; if(!f) return;
-        const reader = new FileReader(); reader.onload = ev=>{
+    importBtn.addEventListener('click',()=>{
+      const input=document.createElement('input');input.type='file';input.accept='application/json';
+      input.onchange=e=>{
+        const f=e.target.files[0];if(!f)return;
+        const reader=new FileReader();reader.onload=ev=>{
           try{
-            const data = JSON.parse(ev.target.result);
-            if(!Array.isArray(data)) return alert('File không hợp lệ (cần 1 mảng entries).');
-            // merge but avoid id collisions
-            const existingIds = new Set(entries.map(x=>x.id));
-            data.forEach(d=>{ const ne = normalizeEntry(d); if(existingIds.has(ne.id)) ne.id = genId(); entries.push(ne); });
-            saveEntries(); render();
-            alert('Nhập thành công: ' + data.length + ' mục.');
-          }catch(err){ alert('Không đọc được file: ' + err.message); }
+            const data=JSON.parse(ev.target.result);
+            if(!Array.isArray(data))return alert('File không hợp lệ (cần 1 mảng entries).');
+            const existingIds=new Set(entries.map(x=>x.id));
+            data.forEach(d=>{const ne=normalizeEntry(d);if(existingIds.has(ne.id))ne.id=genId();entries.push(ne);});
+            saveEntries();currentPage=1;render();alert('Nhập thành công: '+data.length+' mục.');
+          }catch(err){alert('Không đọc được file: '+err.message);}
         };
         reader.readAsText(f);
       };
       input.click();
     });
 
-    // seed
-    seedBtn.addEventListener('click', ()=>{
-      const samples = [
-        {english:'innovate', vietnamese:'đổi mới, sáng tạo', notes:'to introduce new methods, ideas, or products', tags:['general','verb']},
-        {english:'consequence', vietnamese:'hậu quả, kết quả', notes:'the result or effect of an action', tags:['noun']},
-        {english:'apply for', vietnamese:'nộp đơn xin', notes:'apply for a job/scholarship', tags:['phrasal verb']}
+    seedBtn.addEventListener('click',()=>{
+      const samples=[
+        {english:'innovate',vietnamese:'đổi mới, sáng tạo',notes:'to introduce new methods, ideas, or products',tags:['general','verb']},
+        {english:'consequence',vietnamese:'hậu quả, kết quả',notes:'the result or effect of an action',tags:['noun']},
+        {english:'apply for',vietnamese:'nộp đơn xin',notes:'apply for a job/scholarship',tags:['phrasal verb']}
       ];
-      samples.reverse().forEach(s=> entries.unshift(normalizeEntry({...s, id:genId(), known:false, created:Date.now()})));
-      saveEntries(); render();
+      samples.reverse().forEach(s=>entries.unshift({...s,id:genId(),known:false,created:Date.now()}));
+      saveEntries();render();
     });
 
-    // clear all
-    clearAllBtn.addEventListener('click', ()=>{
-      if(!confirm('Xóa tất cả dữ liệu? Hành động này không thể hoàn tác.')) return;
-      entries = []; saveEntries(); render();
+    clearAllBtn.addEventListener('click',()=>{
+      if(confirm('Bạn có chắc muốn xóa toàn bộ dữ liệu?')){
+        entries=[];saveEntries();render();
+      }
     });
-
-    // initial help - show hint once
-    (function(){ if(!localStorage.getItem('vocabnotes.hint_shown')){ console.info('VocabNotes ready — use Export/Import to sync between máy.'); localStorage.setItem('vocabnotes.hint_shown','1'); } })();
-
   </script>
 </body>
 </html>
